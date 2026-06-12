@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sharkeye Studio — generative plotter studies</title>
+<style>
+  :root{
+    --paper:#faf7f0;
+    --card:#fffdf8;
+    --ink:#23262d;
+    --ink-soft:#6b6f78;
+    --rust:#b35a1f;
+    --indigo:#2e4d6b;
+    --hairline:#ddd6c6;
+    --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    display:flex; align-items:baseline; gap:14px;
+    padding:14px 20px 12px;
+    border-bottom:1px solid var(--hairline);
+  }
+  header h1{
+    font-size:14px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  }
+  header h1 .dot-r{color:var(--rust);}
+  header h1 .dot-i{color:var(--indigo);}
+  header .sub{color:var(--ink-soft); font-size:11px; letter-spacing:.04em;}
+  main{
+    flex:1; display:flex; min-height:0;
+  }
+  /* ---- control rail ---- */
+  aside{
+    width:300px; flex:none; overflow-y:auto;
+    padding:18px 20px 28px;
+    border-right:1px solid var(--hairline);
+  }
+  .group{margin-bottom:22px;}
+  .group > .gtitle{
+    font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-soft); margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .gtitle::after{content:""; flex:1; height:1px; background:var(--hairline);}
+  .ctl{margin-bottom:12px;}
+  .ctl .row{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;
+  }
+  .ctl label{font-size:12px;}
+  .ctl output{
+    font-size:12px; color:var(--ink-soft); font-variant-numeric:tabular-nums;
+  }
+  input[type=range]{
+    width:100%; appearance:none; height:2px; border-radius:1px;
+    background:var(--hairline); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--ink); border:2px solid var(--paper);
+    box-shadow:0 0 0 1px var(--ink);
+  }
+  input[type=range].pen-rust::-webkit-slider-thumb{background:var(--rust); box-shadow:0 0 0 1px var(--rust);}
+  input[type=range].pen-indigo::-webkit-slider-thumb{background:var(--indigo); box-shadow:0 0 0 1px var(--indigo);}
+  input[type=range]::-moz-range-thumb{
+    width:11px; height:11px; border-radius:50%;
+    background:var(--ink); border:2px solid var(--paper);
+    box-shadow:0 0 0 1px var(--ink);
+  }
+  .seedrow{display:flex; gap:8px;}
+  .seedrow input[type=number]{
+    flex:1; min-width:0; font-family:var(--mono); font-size:13px;
+    padding:6px 8px; border:1px solid var(--hairline); border-radius:3px;
+    background:var(--card); color:var(--ink);
+  }
+  button{
+    font-family:var(--mono); font-size:12px; letter-spacing:.04em;
+    padding:6px 12px; border:1px solid var(--ink); border-radius:3px;
+    background:var(--card); color:var(--ink); cursor:pointer;
+  }
+  button:hover{background:var(--ink); color:var(--paper);}
+  button:focus-visible, input:focus-visible{outline:2px solid var(--indigo); outline-offset:2px;}
+  button.primary{width:100%; margin-top:4px;}
+  /* ---- preview ---- */
+  section.preview{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; min-width:0; gap:12px;
+  }
+  .sheet{
+    background:var(--card);
+    border:1px solid var(--hairline);
+    box-shadow:0 2px 14px rgba(35,38,45,.07);
+    width:min(78vh, 100%, 760px);
+    aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .sheet svg{width:100%; height:100%; display:block;}
+  .sheet .busy{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(255,253,248,.6); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .sheet.rendering .busy{display:flex;}
+  .stats{
+    font-size:11px; color:var(--ink-soft); letter-spacing:.04em;
+    display:flex; gap:18px; font-variant-numeric:tabular-nums;
+  }
+  .stats .rust{color:var(--rust);}
+  .stats .indigo{color:var(--indigo);}
+  @media (max-width:760px){
+    main{flex-direction:column;}
+    aside{width:100%; border-right:none; border-bottom:1px solid var(--hairline);}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .sheet svg{transition:opacity .12s ease;}
+    .sheet.rendering svg{opacity:.45;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sharkeye Studio <span class="dot-r">●</span><span class="dot-i">●</span></h1>
+  <span class="sub">two-pen plotter studies after Neverita duplicata</span>
+</header>
+
+<main>
+  <aside>
+    <div class="group">
+      <div class="gtitle">Specimen</div>
+      <div class="ctl">
+        <div class="row"><label for="seed">Seed</label></div>
+        <div class="seedrow">
+          <input id="seed" type="number" value="7" min="0" step="1">
+          <button id="randomize" title="Pick a random seed">New</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gtitle">Growth lines</div>
+      <div class="ctl">
+        <div class="row"><label for="sampling">Line sampling</label><output id="sampling-v"></output></div>
+        <input id="sampling" type="range" min="16" max="240" step="4" value="140">
+      </div>
+      <div class="ctl">
+        <div class="row"><label for="sweep">Sweep</label><output id="sweep-v"></output></div>
+        <input id="sweep" type="range" min="0" max="3" step="0.05" value="1.8">
+      </div>
+      <div class="ctl">
+        <div class="row"><label for="sweeppow">Sweep curve</label><output id="sweeppow-v"></output></div>
+        <input id="sweeppow" type="range" min="0.5" max="2.5" step="0.05" value="1.1">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gtitle">Wobble</div>
+      <div class="ctl">
+        <div class="row"><label for="wobfreq">Frequency</label><output id="wobfreq-v"></output></div>
+        <input id="wobfreq" type="range" min="0.5" max="14" step="0.25" value="6">
+      </div>
+      <div class="ctl">
+        <div class="row"><label for="wobamp">Amplitude</label><output id="wobamp-v"></output></div>
+        <input id="wobamp" type="range" min="0" max="0.05" step="0.001" value="0.018">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gtitle">Ink assignment</div>
+      <div class="ctl">
+        <div class="row"><label for="bias">Rust ↔ indigo balance</label><output id="bias-v"></output></div>
+        <input id="bias" class="pen-rust" type="range" min="-1.2" max="1.2" step="0.05" value="0">
+      </div>
+      <div class="ctl">
+        <div class="row"><label for="gain">Patch edge dither</label><output id="gain-v"></output></div>
+        <input id="gain" class="pen-indigo" type="range" min="0.3" max="6" step="0.1" value="2.2">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gtitle">Output</div>
+      <button class="primary" id="download">Download SVG</button>
+    </div>
+  </aside>
+
+  <section class="preview">
+    <div class="sheet" id="sheet">
+      <div id="svg-holder"></div>
+      <div class="busy">plotting…</div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+
+/* ---------- seeded RNG (mulberry32) ---------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const U = (rng, a, b) => a + (b - a) * rng();
+
+/* ---------- smooth 1-D noise: sum of incommensurate sines ---------- */
+class Wobble{
+  constructor(rng, octaves = 3, baseFreq = 1, amp = 1){
+    this.terms = [];
+    let f = baseFreq, a = amp;
+    for(let i = 0; i < octaves; i++){
+      this.terms.push([f * U(rng, 0.8, 1.25), U(rng, 0, TAU), a]);
+      f *= 2.13; a *= 0.5;
+    }
+  }
+  at(x){
+    let s = 0;
+    for(const [f, p, a] of this.terms) s += a * Math.sin(f * x + p);
+    return s;
+  }
+}
+
+/* ---------- the generator (port of sharkeye.py) ---------- */
+class SharkEye{
+  constructor(seed, P){
+    // structural randomness: fixed draw order so the same seed always
+    // produces the same shell regardless of slider positions
+    const rng = mulberry32(seed);
+    this.P = P;
+    this.size = 180;
+
+    this.whorls   = U(rng, 2.8, 4.4);
+    this.k        = U(rng, 0.15, 0.24);
+    this.thetaMax = this.whorls * TAU;
+    this.rot      = U(rng, 0, TAU);
+    this.squash   = U(rng, 0.90, 1.0);
+    this.handed   = rng() < 0.5 ? 1 : -1;
+    this.bulgeP   = U(rng, 0.25, 0.5);
+
+    const margin = 0.08 * this.size;
+    this.scale = (this.size / 2 - margin) / Math.exp(this.k * this.thetaMax);
+
+    this.nGrowth = Math.floor(U(rng, 400, 700));
+    this.wobR       = new Wobble(rng, 3, U(rng, 2, 5), U(rng, 0.003, 0.010));
+    this.wobLine    = new Wobble(rng, 3, P.wobFreq, P.wobAmp);
+    this.densityWob = new Wobble(rng, 2, U(rng, 3, 7), 0.55);
+
+    const ff = U(rng, 0.07, 0.14);
+    this.fieldA = new Wobble(rng, 2, ff, 1.0);
+    this.fieldB = new Wobble(rng, 2, ff * U(rng, 0.8, 1.3), 1.0);
+    this.fieldC = new Wobble(rng, 2, ff * 2.2, 0.45);
+    this.fieldBias = U(rng, -0.3, 0.3) + P.bias;
+
+    // separate stream for per-line randomness (stubs, dithering) so the
+    // structural shell never shifts when sliders change
+    this.lineRng = mulberry32(seed ^ 0x9E3779B9);
+  }
+
+  rSpiral(th){ return Math.exp(this.k * th); }
+
+  rOuter(th){
+    const innerEnd = this.thetaMax - TAU;
+    if(th <= innerEnd) return this.rSpiral(th);
+    const u = (th - innerEnd) / TAU;
+    const expo = this.k * TAU * (u - 1) * (1 - Math.pow(u, this.bulgeP));
+    return this.rSpiral(this.thetaMax) * Math.exp(expo);
+  }
+
+  point(th, radius){
+    radius *= 1 + this.wobR.at(th);
+    const a = this.handed * th + this.rot, c = this.size / 2;
+    return [
+      c + radius * Math.cos(a) * this.scale,
+      c + radius * Math.sin(a) * this.scale * this.squash
+    ];
+  }
+
+  linePts(phi, t0){
+    const n = this.P.sampling, pts = [];
+    for(let i = 0; i <= n; i++){
+      const t = t0 + (1 - t0) * i / n;
+      let a = phi + this.P.sweep * Math.pow(Math.max(1 - t, 0), this.P.sweepPow);
+      a += this.wobLine.at(phi * 3.1 + t * 7.7) * (1 - t) * 0.5;
+      const rad = this.rOuter(a - TAU * (1 - t));
+      pts.push(this.point(a, rad));
+    }
+    return pts;
+  }
+
+  colorField(x, y){
+    return this.fieldA.at(x + 0.37 * y) + this.fieldB.at(y - 0.41 * x)
+         + this.fieldC.at(0.7 * x + 0.7 * y) + this.fieldBias;
+  }
+
+  lineIsWarm(pts){
+    const [x, y] = pts[pts.length >> 1];
+    const p = 1 / (1 + Math.exp(-this.P.gain * this.colorField(x, y)));
+    return this.lineRng() < p;
+  }
+
+  render(){
+    const cool = [], warm = [];
+    const phi0 = 0.8 * TAU;
+    const baseArc = (Math.exp(this.k * this.thetaMax) - Math.exp(this.k * phi0))
+                  / (this.k * this.nGrowth);
+    let phi = phi0;
+    while(phi < this.thetaMax){
+      const t0 = this.lineRng() < 0.65 ? 0 : U(this.lineRng, 0.2, 0.6);
+      const pts = this.linePts(phi, t0);
+      const d = "M " + pts.map(p => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(" L ");
+      (this.lineIsWarm(pts) ? warm : cool).push(d);
+      const step = baseArc / this.rSpiral(phi);
+      phi += step * Math.max(1 + this.densityWob.at(phi), 0.35);
+    }
+    const layer = (label, color, w, paths) =>
+      `<g inkscape:groupmode="layer" inkscape:label="${label}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">` +
+      paths.map(d => `<path d="${d}"/>`).join("") + `</g>`;
+    const s = this.size;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${s}mm" height="${s}mm" viewBox="0 0 ${s} ${s}">` +
+      layer("1-cool", "#2e4d6b", 0.30, cool) +
+      layer("2-warm", "#b35a1f", 0.30, warm) +
+      `</svg>`;
+    return { svg, nCool: cool.length, nWarm: warm.length };
+  }
+}
+
+/* ---------- UI wiring ---------- */
+const $ = id => document.getElementById(id);
+const sliders = {
+  sampling: { el: $("sampling"), out: $("sampling-v"), fmt: v => v },
+  sweep:    { el: $("sweep"),    out: $("sweep-v"),    fmt: v => (+v).toFixed(2) },
+  sweepPow: { el: $("sweeppow"), out: $("sweeppow-v"), fmt: v => (+v).toFixed(2) },
+  wobFreq:  { el: $("wobfreq"),  out: $("wobfreq-v"),  fmt: v => (+v).toFixed(2) },
+  wobAmp:   { el: $("wobamp"),   out: $("wobamp-v"),   fmt: v => (+v).toFixed(3) },
+  bias:     { el: $("bias"),     out: $("bias-v"),     fmt: v => (+v > 0 ? "+" : "") + (+v).toFixed(2) },
+  gain:     { el: $("gain"),     out: $("gain-v"),     fmt: v => (+v).toFixed(1) },
+};
+
+let lastSVG = "";
+
+function params(){
+  return {
+    sampling: +sliders.sampling.el.value,
+    sweep:    +sliders.sweep.el.value,
+    sweepPow: +sliders.sweepPow.el.value,
+    wobFreq:  +sliders.wobFreq.el.value,
+    wobAmp:   +sliders.wobAmp.el.value,
+    bias:     +sliders.bias.el.value,
+    gain:     +sliders.gain.el.value,
+  };
+}
+
+function regenerate(){
+  const sheet = $("sheet");
+  sheet.classList.add("rendering");
+  // let the busy state paint before the synchronous render
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const seed = Math.max(0, Math.floor(+$("seed").value || 0));
+    const t0 = performance.now();
+    const { svg, nCool, nWarm } = new SharkEye(seed, params()).render();
+    lastSVG = svg;
+    $("svg-holder").innerHTML = svg;
+    const total = nCool + nWarm, ms = Math.round(performance.now() - t0);
+    $("stats").innerHTML =
+      `<span>${total.toLocaleString()} paths</span>` +
+      `<span class="rust">rust ${Math.round(100 * nWarm / total)}%</span>` +
+      `<span class="indigo">indigo ${Math.round(100 * nCool / total)}%</span>` +
+      `<span>${ms} ms</span>`;
+    sheet.classList.remove("rendering");
+  }));
+}
+
+let timer = null;
+function queue(){ clearTimeout(timer); timer = setTimeout(regenerate, 120); }
+
+for(const key in sliders){
+  const s = sliders[key];
+  const sync = () => { s.out.textContent = s.fmt(s.el.value); };
+  s.el.addEventListener("input", () => { sync(); queue(); });
+  sync();
+}
+$("seed").addEventListener("input", queue);
+$("randomize").addEventListener("click", () => {
+  $("seed").value = Math.floor(Math.random() * 1e6);
+  regenerate();
+});
+$("download").addEventListener("click", () => {
+  const blob = new Blob([lastSVG], { type: "image/svg+xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `sharkeye_${$("seed").value}.svg`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+regenerate();
+</script>
+</body>
+</html>
